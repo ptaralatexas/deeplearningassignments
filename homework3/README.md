@@ -1,6 +1,7 @@
 # Homework 3
 
 In this homework, we will explore Convolution Networks in core computer vision tasks:
+
 - Classification
 - Segmentation
 - Detection
@@ -10,16 +11,19 @@ You will need to use a GPU or [Google Colab](https://colab.research.google.com/)
 ## Setup + Starter Code
 
 In this assignment, we'll be working with two datasets:
+
 - [SuperTuxKart Classification Dataset](https://www.cs.utexas.edu/~bzhou/dl_class/classification_data.zip) for classification
 - [SuperTuxKart Road Dataset](https://www.cs.utexas.edu/~bzhou/dl_class/road_data.zip) for segmentation and detection
 
 You can download the datasets by running the following command from the main directory:
+
 ```bash
 curl -s -L https://www.cs.utexas.edu/~bzhou/dl_class/classification_data.zip -o ./classification_data.zip && unzip -qo classification_data.zip
 curl -s -L https://www.cs.utexas.edu/~bzhou/dl_class/road_data.zip -o ./road_data.zip && unzip -qo road_data.zip
 ```
 
 Make sure you see the following directories and files inside your main directory
+
 ```
 bundle.py
 homework
@@ -27,9 +31,11 @@ grader
 classification_data
 road_data
 ```
+
 You will run all scripts from inside this main directory.
 
 In the `homework` directory, you'll find the following:
+
 - `models.py` - where you will implement various models
 - `metrics.py` - metrics to evaluate your models
 - `datasets` - contains dataset loading and transformation functions
@@ -38,12 +44,14 @@ In the `homework` directory, you'll find the following:
 
 This time, you'll implement the training code from scratch!
 Note that this homework consists of two parts, so we suggest splitting your training code into two parts:
+
 * `train_classification.py` - part 1
 * `train_detection.py` - part 2
 
 The previous homework should be a good reference, but feel free to modify different parts of the training code depending on how you want to perform experiments.
 
 Recall that a training pipeline includes:
+
 * Creating an optimizer
 * Creating a model, loss, metrics (task dependent)
 * Loading the data (task dependent)
@@ -56,6 +64,7 @@ You can see how to use them in `grader/tests.py`.
 ### Grader Instructions
 
 You can grade your trained models by running the following command from the main directory:
+
 - `python3 -m grader homework -v` for medium verbosity
 - `python3 -m grader homework -vv` to include print statements
 - `python3 -m grader homework --disable_color` for Google Colab since colors don't show up that well
@@ -77,6 +86,7 @@ Pass the corresponding `transform_pipeline` string to the `load_data` function.
 Remember to only apply data augmentations to the training set.
 
 ### Hints/Tips
+
 - Run your model on some sample data as a sanity check - do the shapes of the tensors make sense?
 - A network with just a few layers should be able to achieve a decent accuracy on this task.
 - Additional tricks like residual blocks, dropout, weight regularization can help improve performance.
@@ -84,10 +94,11 @@ Remember to only apply data augmentations to the training set.
 - Remember to call `model.train()` and `model.eval()` to switch between training and evaluation modes (even when using `torch.inference_mode()`).
 
 ### Relevant Operations
- - [torch.nn.Conv2d](https://pytorch.org/docs/stable/nn.html#convolution-layers)
- - [torch.nn.BatchNorm2d](https://pytorch.org/docs/stable/nn.html#normalization-layers)
- - [torchvision.transforms.Compose](https://pytorch.org/vision/stable/generated/torchvision.transforms.Compose.html)
- - [torchvision.transforms.HorizontalFlip](https://pytorch.org/vision/stable/generated/torchvision.transforms.RandomHorizontalFlip.html)
+
+- [torch.nn.Conv2d](https://pytorch.org/docs/stable/nn.html#convolution-layers)
+- [torch.nn.BatchNorm2d](https://pytorch.org/docs/stable/nn.html#normalization-layers)
+- [torchvision.transforms.Compose](https://pytorch.org/vision/stable/generated/torchvision.transforms.Compose.html)
+- [torchvision.transforms.HorizontalFlip](https://pytorch.org/vision/stable/generated/torchvision.transforms.RandomHorizontalFlip.html)
 
 ## Part 2: Road Detection (65 points)
 
@@ -111,11 +122,13 @@ This dataset yields a dictionary with keys `image`, `depth`, and `track` (segmen
 
 Implement the `Detector` model in `models.py`.
 Your `forward` function receives a `(B, 3, 96, 128)` image tensor as an input and should return both:
+
 - `(B, 3, 96, 128)` logits for the 3 classes
 - `(B, 1, 96, 128)` tensor of depths.
 
 Use a series of convolutions to gradually reduce the spatial dimensions of the input while increasing the number of channels, then use up-convolutions `(torch.nn.Conv2dTranspose)` to recover the original spatial dimensions.
 Here's an example of how the intermediate layer outputs shapes would look like:
+
 ```
 Input   (b,  3,     h,     w)    input image
 Down1   (b, 16, h / 2, w / 2)    after strided conv layer
@@ -129,20 +142,24 @@ Depth   (b,  1,     h,     w)    output depth, single channel
 Additionally, the model should be able to handle arbitrary input resolutions and produce an output of the same shape as the input by using appropriate padding and striding.
 
 To supervise the model, you will need to use two loss functions:
+
 - Cross-entropy loss for the segmentation task
 - Regression loss (e.g., absolute error, squared error) for the depth prediction task
-Use a combination of the two losses to train the model.
+  Use a combination of the two losses to train the model.
 
 ### Evaluation
 
 Most of the segmentation mask will belong to the background class, making it is easy to achieve a high accuracy by predicting only background.
 In this task, we will additionally evaluate the model using the mean Intersection over Union (mIoU) metric, which helps to account for the class imbalance (see the provided `ConfusionMatrix` class in `metrics.py`).
 
-$$IoU = \frac{\text{true positives}}{\text{true positives} + \text{false positives} + \text{false negatives}}$$
+$$
+IoU = \frac{\text{true positives}}{\text{true positives} + \text{false positives} + \text{false negatives}}
+$$
 
 For depth prediction, we will use the mean absolute error (MAE) metric as well as MAE computed for the lane boundary pixels only.
 
 ### Hints/Tips
+
 - Use a single model to process the image features, then branch out to separate heads for segmentation and depth prediction.
 - Start with the simplest model, then gradually increase the complexity.
 - Build your network as a set of composable blocks (one for down convolution and one for up convolution).
@@ -153,12 +170,15 @@ For depth prediction, we will use the mean absolute error (MAE) metric as well a
 ## Submission
 
 Create a submission bundle (max size **40MB**) using:
+
 ```bash
 python3 bundle.py homework [YOUR UT ID]
 ```
 
 Please double-check that your zip file was properly created by grading it again.
+
 ```bash
 python3 -m grader [YOUR UT ID].zip
 ```
+
 After verifying that the zip file grades successfully, you can submit it on Canvas.

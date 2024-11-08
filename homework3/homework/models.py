@@ -111,9 +111,9 @@ class Detector(torch.nn.Module):
 
         # TODO: implement
         self.encoder = nn.Sequential(
-            nn.Conv2d(in_channels, 32, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(in_channels, 32, kernel_size=3, stride=2, padding=1),
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(2),
         )
@@ -151,9 +151,13 @@ class Detector(torch.nn.Module):
 
         # Segmentation output
         logits = self.segmentation_head(features)
+        logits = F.interpolate(logits, size = (x.shape[2], x.shape[3]), mode ="bilinear",align_corners = False)
 
         # Depth output
-        depth = self.depth_head(features).squeeze(1)  # (b, h, w)
+        depth = self.depth_head(features)
+        if depth.dim() == 3:
+          depth = depth.unsqueeze(1)
+        depth = F.interpolate(depth, size= (x.shape[2], x.shape[3]), mode = "bilinear", align_corners = False).squeeze(1)
 
         return logits, depth
 
@@ -276,6 +280,13 @@ class ClassificationLoss(nn.Module):
         loss = torch.nn.CrossEntropyLoss()
         loss_val = loss(logits,target)
         return loss_val
+
+class RegressionLoss(nn.Module):
+  def forward(self,logits: torch.Tensor, target: torch.LongTensor) -> torch.Tensor:
+    loss = torch.nn.MSELoss()
+    loss_val = loss(logits,target)
+    return loss_val
+
 
 
 if __name__ == "__main__":
