@@ -17,6 +17,7 @@ def train(
     lr: float = 1e-1,
     batch_size: int = 128,
     seed: int = 2024,
+    transform_pipeline = "state_only",
     **kwargs,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -124,6 +125,7 @@ if __name__ == "__main__":
        parser.add_argument("--lr", type=float, default=1e-3)
        parser.add_argument("--batch_size", type=int, default=128)
        parser.add_argument("--seed", type=int, default=2024)
+       parser.add_argument("--transform_pipeline", type=str, default="state_only")
 
     # optional: additional model hyperparamters
        #parser.add_argument("--num_layers", type=int, default=3)
