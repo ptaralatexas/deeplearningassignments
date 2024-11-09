@@ -12,7 +12,7 @@ from .datasets.road_dataset import load_data
 
 def train(
     exp_dir: str = "logs",
-    model_name: str = "detector",
+    model_name: str = "mlp_planner",
     num_epoch: int = 100,
     lr: float = 1e-1,
     batch_size: int = 128,
@@ -31,8 +31,8 @@ def train(
     model = model.to(device)
     model.train()
 
-    train_data = load_data("road_data/train", shuffle=True, batch_size=batch_size, num_workers=4)
-    val_data = load_data("road_data/val", shuffle=False, batch_size=batch_size, num_workers=4)
+    train_data = load_data("drive_data/train", shuffle=True, batch_size=batch_size, num_workers=4)
+    val_data = load_data("drive_data/val", shuffle=False, batch_size=batch_size, num_workers=4)
 
     # Define a loss function (MSE for waypoint prediction)
     loss_func = torch.nn.MSELoss()
@@ -112,3 +112,22 @@ def train(
     save_model(model)
     torch.save(model.state_dict(), log_dir / f"{model_name}.th")
     print(f"Model saved to {log_dir / f'{model_name}.th'}")
+
+
+
+if __name__ == "__main__":
+       parser = argparse.ArgumentParser()
+
+       parser.add_argument("--exp_dir", type=str, default="logs")
+       parser.add_argument("--model_name", type=str, required=True)
+       parser.add_argument("--num_epoch", type=int, default=100)
+       parser.add_argument("--lr", type=float, default=1e-3)
+       parser.add_argument("--batch_size", type=int, default=128)
+       parser.add_argument("--seed", type=int, default=2024)
+
+    # optional: additional model hyperparamters
+       #parser.add_argument("--num_layers", type=int, default=3)
+
+    # pass all arguments to train
+       args = parser.parse_args()
+       train(**vars(parser.parse_args()))
