@@ -25,11 +25,11 @@ class MLPPlanner(nn.Module):
         self.n_waypoints = n_waypoints
 
 
-        self.mlp = nn.sequential(
+        self.mlp = nn.Sequential(
           nn.Linear(n_track * 2 * 2, 64),
-          nn.Relu(),
+          nn.ReLU(),
           nn.Linear(64,64),
-          nn.Relu(),
+          nn.ReLU(),
           nn.Linear(64, n_waypoints * 2)
         )
 
