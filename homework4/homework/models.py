@@ -2,6 +2,7 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 HOMEWORK_DIR = Path(__file__).resolve().parent
 INPUT_MEAN = [0.2788, 0.2657, 0.2629]
@@ -105,7 +106,7 @@ class TransformerPlanner(nn.Module):
         raise NotImplementedError
 
 
-class CNNPlanner(torch.nn.Module):
+class CNNPlanner(nn.Module):
     def __init__(
         self,
         n_waypoints: int = 3,
@@ -114,22 +115,71 @@ class CNNPlanner(torch.nn.Module):
 
         self.n_waypoints = n_waypoints
 
+        # Normalization buffers
         self.register_buffer("input_mean", torch.as_tensor(INPUT_MEAN), persistent=False)
         self.register_buffer("input_std", torch.as_tensor(INPUT_STD), persistent=False)
+
+        # Define convolutional layers
+        self.conv_layers = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(),
+        )
+
+        # Placeholder for the fully connected layers
+        # We will initialize them after knowing the spatial dimensions
+        self.fc_layers = None
+
+    def initialize_fc_layers(self, x):
+        """
+        Initializes the fully connected layers based on the input size after convolutions.
+        This should be called in the forward pass after passing the image through conv layers.
+        """
+        # Calculate the flattened size after conv layers
+        flattened_size = x.view(x.size(0), -1).size(1)
+        self.fc_layers = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(flattened_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, self.n_waypoints * 2)  # Predict n_waypoints * 2 coordinates (x, y)
+        )
+
+        # Move fc_layers to the same device as x
+        self.fc_layers = self.fc_layers.to(x.device)
 
     def forward(self, image: torch.Tensor, **kwargs) -> torch.Tensor:
         """
         Args:
-            image (torch.FloatTensor): shape (b, 3, h, w) and vals in [0, 1]
+            image (torch.FloatTensor): shape (b, 3, h, w) and values in [0, 1]
 
         Returns:
-            torch.FloatTensor: future waypoints with shape (b, n, 2)
+            torch.FloatTensor: future waypoints with shape (b, n_waypoints, 2)
         """
-        x = image
-        x = (x - self.input_mean[None, :, None, None]) / self.input_std[None, :, None, None]
+        # Ensure input_mean and input_std are on the same device as the image
+        input_mean = self.input_mean.to(image.device)
+        input_std = self.input_std.to(image.device)
 
-        raise NotImplementedError
+        # Normalize the input image
+        x = (image - input_mean[None, :, None, None]) / input_std[None, :, None, None]
 
+        # Pass through convolutional layers
+        x = self.conv_layers(x)
+
+        # Initialize fully connected layers based on dynamic input size if they haven't been initialized
+        if self.fc_layers is None:
+            self.initialize_fc_layers(x)
+
+        # Pass through fully connected layers to get waypoints
+        x = self.fc_layers(x)
+
+        # Reshape to (batch_size, n_waypoints, 2) for (x, y) coordinates
+        waypoints = x.view(-1, self.n_waypoints, 2)
+        return waypoints
 
 MODEL_FACTORY = {
     "mlp_planner": MLPPlanner,
