@@ -36,7 +36,7 @@ def train(
     val_data = load_data("drive_data/val", shuffle=False, batch_size=batch_size, num_workers=4)
 
     # Define a loss function (MSE for waypoint prediction)
-    loss_func = torch.nn.MSELoss()
+    loss_func = torch.nn.SmoothL1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     global_step = 0
