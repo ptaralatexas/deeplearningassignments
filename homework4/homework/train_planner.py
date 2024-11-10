@@ -10,6 +10,22 @@ import torch.utils.tensorboard as tb
 from .models import load_model, save_model
 from .datasets.road_dataset import load_data
 
+
+class CustomSmoothL1Loss(nn.Module):
+    def __init__(self, weight_x=2.0, weight_y=1.0):  # Increase weight_x to prioritize lateral error
+        super(CustomSmoothL1Loss, self).__init__()
+        self.weight_x = weight_x
+        self.weight_y = weight_y
+        self.smooth_l1 = nn.SmoothL1Loss()
+
+    def forward(self, output, target):
+        # Separate the x and y coordinates
+        loss_x = self.smooth_l1(output[..., 0], target[..., 0]) * self.weight_x
+        loss_y = self.smooth_l1(output[..., 1], target[..., 1]) * self.weight_y
+        # Combine the losses
+        return loss_x + loss_y
+
+
 def train(
     exp_dir: str = "logs",
     model_name: str = "mlp_planner",
@@ -36,7 +52,7 @@ def train(
     val_data = load_data("drive_data/val", shuffle=False, batch_size=batch_size, num_workers=4)
 
     # Define a loss function (MSE for waypoint prediction)
-    loss_func = torch.nn.SmoothL1Loss()
+    loss_func = CustomSmoothL1Loss(weight_x=2.0, weight_y=1.0)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     global_step = 0
