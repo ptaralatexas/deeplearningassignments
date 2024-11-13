@@ -107,10 +107,7 @@ class TransformerPlanner(nn.Module):
 
 
 class CNNPlanner(nn.Module):
-    def __init__(
-        self,
-        n_waypoints: int = 3,
-    ):
+    def __init__(self, n_waypoints: int = 3):
         super().__init__()
 
         self.n_waypoints = n_waypoints
@@ -121,36 +118,27 @@ class CNNPlanner(nn.Module):
 
         # Define convolutional layers
         self.conv_layers = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(3, 32, kernel_size=3, stride=2, padding=1),  # Output: (32, 64, 64)
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),  # Output: (64, 32, 32)
             nn.ReLU(),
-            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),  # Output: (128, 16, 16)
             nn.ReLU(),
-            nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1),  # Output: (256, 8, 8)
             nn.ReLU(),
         )
 
-        # Placeholder for the fully connected layers
-        # We will initialize them after knowing the spatial dimensions
-        self.fc_layers = None
+        # Calculate the output size after conv layers for a 128x128 input image
+        # Flattened size would be 256 * 8 * 8 = 16384
+        flattened_size = 256 * 8 * 8
 
-    def initialize_fc_layers(self, x):
-        """
-        Initializes the fully connected layers based on the input size after convolutions.
-        This should be called in the forward pass after passing the image through conv layers.
-        """
-        # Calculate the flattened size after conv layers
-        flattened_size = x.view(x.size(0), -1).size(1)
+        # Define fully connected layers based on fixed flattened size
         self.fc_layers = nn.Sequential(
             nn.Flatten(),
             nn.Linear(flattened_size, 512),
             nn.ReLU(),
             nn.Linear(512, self.n_waypoints * 2)  # Predict n_waypoints * 2 coordinates (x, y)
         )
-
-        # Move fc_layers to the same device as x
-        self.fc_layers = self.fc_layers.to(x.device)
 
     def forward(self, image: torch.Tensor, **kwargs) -> torch.Tensor:
         """
@@ -169,10 +157,6 @@ class CNNPlanner(nn.Module):
 
         # Pass through convolutional layers
         x = self.conv_layers(x)
-
-        # Initialize fully connected layers based on dynamic input size if they haven't been initialized
-        if self.fc_layers is None:
-            self.initialize_fc_layers(x)
 
         # Pass through fully connected layers to get waypoints
         x = self.fc_layers(x)

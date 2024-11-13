@@ -139,10 +139,10 @@ if __name__ == "__main__":
        parser.add_argument("--exp_dir", type=str, default="logs")
        parser.add_argument("--model_name", type=str, required=True)
        parser.add_argument("--num_epoch", type=int, default=100)
-       parser.add_argument("--lr", type=float, default=1e-3)
-       parser.add_argument("--batch_size", type=int, default=128)
+       parser.add_argument("--lr", type=float, default=1e-4)
+       parser.add_argument("--batch_size", type=int, default=8)
        parser.add_argument("--seed", type=int, default=2024)
-       parser.add_argument("--transform_pipeline", type=str, default="state_only")
+       parser.add_argument("--transform_pipeline", type=str, default="default")
 
     # optional: additional model hyperparamters
        #parser.add_argument("--num_layers", type=int, default=3)
