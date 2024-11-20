@@ -107,10 +107,11 @@ class TransformerPlanner(nn.Module):
 
 
 class CNNPlanner(nn.Module):
-    def __init__(self, n_waypoints: int = 3):
+    def __init__(self, n_waypoints: int = 3, input_size: tuple = (96, 128)):
         super().__init__()
 
         self.n_waypoints = n_waypoints
+        self.input_size = input_size  # Dynamic input size
 
         # Normalization buffers
         self.register_buffer("input_mean", torch.as_tensor(INPUT_MEAN), persistent=False)
@@ -118,29 +119,41 @@ class CNNPlanner(nn.Module):
 
         # Define convolutional layers
         self.conv_layers = nn.Sequential(
-            nn.Conv2d(3, 16, kernel_size=3, stride=2, padding=1),  # Output: (32, 64, 64)
+            nn.Conv2d(3, 16, kernel_size=3, stride=2, padding=1),  # Output: (16, H/2, W/2)
             nn.ReLU(),
-            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),  # Output: (64, 32, 32)
+            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),  # Output: (32, H/4, W/4)
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),  # Output: (128, 16, 16)
+            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),  # Output: (64, H/8, W/8)
             nn.ReLU(),
-            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),  # Output: (256, 8, 8)
+            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),  # Output: (128, H/16, W/16)
             nn.ReLU(),
         )
 
-        # Calculate the output size after conv layers for a 128x128 input image
-        # Flattened size would be 256 * 8 * 8 = 16384
-        flattened_size = 128 * 8 * 8
+        # Dynamically calculate the flattened size
+        self.flattened_size = self.calculate_flattened_size(self.input_size)
 
-        # Define fully connected layers based on fixed flattened size
+        # Define fully connected layers using the dynamically calculated size
         self.fc_layers = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(flattened_size, 256),
+            nn.Linear(self.flattened_size, 256),
             nn.ReLU(),
-            nn.Linear(256, self.n_waypoints * 2)  # Predict n_waypoints * 2 coordinates (x, y)
+            nn.Linear(256, self.n_waypoints * 2),
         )
 
-    def forward(self, image: torch.Tensor, **kwargs) -> torch.Tensor:
+    def calculate_flattened_size(self, input_size):
+        """
+        Dynamically calculates the flattened size of the feature maps after convolutional layers.
+        """
+        # Create a dummy input tensor with the given input size
+        dummy_input = torch.zeros(1, 3, input_size[0], input_size[1])
+        with torch.no_grad():
+            output = self.conv_layers(dummy_input)
+            #print(f"Shape after conv_layers: {output.shape}")  # Debugging print
+            flattened_size = output.view(1, -1).size(1)
+            #print(f"Calculated flattened size: {flattened_size}")  # Debugging print
+        return flattened_size
+
+    def forward(self, image: torch.Tensor) -> torch.Tensor:
         """
         Args:
             image (torch.FloatTensor): shape (b, 3, h, w) and values in [0, 1]
@@ -148,22 +161,27 @@ class CNNPlanner(nn.Module):
         Returns:
             torch.FloatTensor: future waypoints with shape (b, n_waypoints, 2)
         """
-        # Ensure input_mean and input_std are on the same device as the image
+        # Normalize the input image
         input_mean = self.input_mean.to(image.device)
         input_std = self.input_std.to(image.device)
-
-        # Normalize the input image
         x = (image - input_mean[None, :, None, None]) / input_std[None, :, None, None]
+
+        #print(f"Input image shape: {image.shape}")  # Debugging print
 
         # Pass through convolutional layers
         x = self.conv_layers(x)
+        #print(f"Shape after conv_layers: {x.shape}")  # Debugging print
 
-        # Pass through fully connected layers to get waypoints
+        # Pass through fully connected layers
         x = self.fc_layers(x)
+        #print(f"Shape after fc_layers: {x.shape}")  # Debugging print
 
         # Reshape to (batch_size, n_waypoints, 2) for (x, y) coordinates
         waypoints = x.view(-1, self.n_waypoints, 2)
+        #print(f"Output waypoints shape: {waypoints.shape}")  # Debugging print
         return waypoints
+
+
 
 MODEL_FACTORY = {
     "mlp_planner": MLPPlanner,

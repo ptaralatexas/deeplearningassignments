@@ -7,7 +7,6 @@ import torch
 import torch.nn as nn
 import torch.utils.tensorboard as tb
 
-
 from .models import load_model, save_model
 from .datasets.road_dataset import load_data
 
@@ -34,7 +33,8 @@ def train(
     lr: float = 1e-1,
     batch_size: int = 128,
     seed: int = 2024,
-    transform_pipeline = "state_only",
+    transform_pipeline="state_only",
+    patience: int = 10,
     **kwargs,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -52,9 +52,18 @@ def train(
     train_data = load_data("drive_data/train", shuffle=True, batch_size=batch_size, num_workers=4)
     val_data = load_data("drive_data/val", shuffle=False, batch_size=batch_size, num_workers=4)
 
-    # Define a loss function (MSE for waypoint prediction)
+    # Define loss function and optimizer
     loss_func = CustomSmoothL1Loss(weight_x=2.0, weight_y=1.0)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    # Learning rate scheduler
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='min', factor=0.5, patience=5, verbose=True
+    )
+
+    # Early stopping variables
+    best_val_loss = float('inf')
+    epochs_without_improvement = 0
 
     global_step = 0
     metrics = {"train_loss": [], "val_loss": []}
@@ -78,7 +87,7 @@ def train(
             # Target waypoints
             target_waypoints = batch['waypoints'].to(device)
 
-            # Compute loss (MSE between predicted and target waypoints)
+            # Compute loss
             loss = loss_func(waypoints, target_waypoints)
 
             # Backpropagation
@@ -114,11 +123,27 @@ def train(
             avg_val_loss = total_val_loss / len(val_data)
             metrics["val_loss"].append(avg_val_loss)
 
-        # Log average train and validation loss to tensorboard
+        # Early stopping and scheduler
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            epochs_without_improvement = 0
+            # Save best model
+            torch.save(model.state_dict(), log_dir / f"{model_name}_best.th")
+            print(f"Validation loss improved to {best_val_loss:.4f}. Model saved.")
+        else:
+            epochs_without_improvement += 1
+            print(f"No improvement for {epochs_without_improvement} epoch(s).")
+
+        scheduler.step(avg_val_loss)
+
+        if epochs_without_improvement >= patience:
+            print("Early stopping triggered.")
+            break
+
+        # Log average losses
         epoch_train_loss = torch.as_tensor(metrics["train_loss"]).mean()
         epoch_val_loss = torch.as_tensor(metrics["val_loss"]).mean()
 
-        # Print progress every 10 epochs
         if epoch == 0 or epoch == num_epoch - 1 or (epoch + 1) % 10 == 0:
             print(
                 f"Epoch {epoch + 1:2d} / {num_epoch:2d}: "
@@ -126,27 +151,23 @@ def train(
                 f"val_loss={epoch_val_loss:.4f}"
             )
 
-    # Save model
+    # Save final model
     save_model(model)
     torch.save(model.state_dict(), log_dir / f"{model_name}.th")
-    print(f"Model saved to {log_dir / f'{model_name}.th'}")
-
+    print(f"Final model saved to {log_dir / f'{model_name}.th'}")
 
 
 if __name__ == "__main__":
-       parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser()
 
-       parser.add_argument("--exp_dir", type=str, default="logs")
-       parser.add_argument("--model_name", type=str, required=True)
-       parser.add_argument("--num_epoch", type=int, default=100)
-       parser.add_argument("--lr", type=float, default=1e-4)
-       parser.add_argument("--batch_size", type=int, default=8)
-       parser.add_argument("--seed", type=int, default=2024)
-       parser.add_argument("--transform_pipeline", type=str, default="default")
+    parser.add_argument("--exp_dir", type=str, default="logs")
+    parser.add_argument("--model_name", type=str, required=True)
+    parser.add_argument("--num_epoch", type=int, default=100)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--seed", type=int, default=2024)
+    parser.add_argument("--transform_pipeline", type=str, default="default")
+    parser.add_argument("--patience", type=int, default=10)  # Add patience as an argument
 
-    # optional: additional model hyperparamters
-       #parser.add_argument("--num_layers", type=int, default=3)
-
-    # pass all arguments to train
-       args = parser.parse_args()
-       train(**vars(parser.parse_args()))
+    args = parser.parse_args()
+    train(**vars(args))
