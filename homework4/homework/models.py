@@ -118,26 +118,26 @@ class CNNPlanner(nn.Module):
 
         # Define convolutional layers
         self.conv_layers = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, stride=2, padding=1),  # Output: (32, 64, 64)
+            nn.Conv2d(3, 16, kernel_size=3, stride=2, padding=1),  # Output: (32, 64, 64)
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),  # Output: (64, 32, 32)
+            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),  # Output: (64, 32, 32)
             nn.ReLU(),
-            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),  # Output: (128, 16, 16)
+            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),  # Output: (128, 16, 16)
             nn.ReLU(),
-            nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1),  # Output: (256, 8, 8)
+            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),  # Output: (256, 8, 8)
             nn.ReLU(),
         )
 
         # Calculate the output size after conv layers for a 128x128 input image
         # Flattened size would be 256 * 8 * 8 = 16384
-        flattened_size = 256 * 8 * 8
+        flattened_size = 128 * 8 * 8
 
         # Define fully connected layers based on fixed flattened size
         self.fc_layers = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(flattened_size, 512),
+            nn.Linear(flattened_size, 256),
             nn.ReLU(),
-            nn.Linear(512, self.n_waypoints * 2)  # Predict n_waypoints * 2 coordinates (x, y)
+            nn.Linear(256, self.n_waypoints * 2)  # Predict n_waypoints * 2 coordinates (x, y)
         )
 
     def forward(self, image: torch.Tensor, **kwargs) -> torch.Tensor:
